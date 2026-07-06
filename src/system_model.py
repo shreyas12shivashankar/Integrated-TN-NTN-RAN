@@ -50,7 +50,7 @@ def get_rician_fading_and_pdf(k_db):
 
 def channel_coefficient(antenna_gain_db, path_loss_db, k_factor_db):
     # Eq (4): Channel coefficient between RU j and UE n
-    # Convert gains and losses from dB to linear scale inside the function
+    # Convert dB to linear scale 
     g_jn_linear = 10 ** (antenna_gain_db / 10.0)
     path_loss_linear = 10 ** (path_loss_db / 10.0)
     

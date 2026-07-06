@@ -12,163 +12,114 @@ from src.system_model import (
 )
 import src.constants as const
 
-def analyze_primary_paths():
+def dbm_to_watts(dbm):
+    """Converts a decibel-milliwatt (dBm) value to linear Watts."""
+    return 10 ** ((dbm - 30) / 10)
+ 
+# Evaluate physical links
+def get_all_link_budgets(ue_pos, bs_coords, hap_coord, leo_coord):
+    """Calculates received power for every node and returns a list of dictionaries."""
+    links = []
     
-    # 1. Setup Network 
+    # NTN Links
+    d_hap = distance_3D(hap_coord, ue_pos)
+    rx_hap = const.TX_POWER_HAP_W * channel_coefficient(GAIN_HAP_DBI, free_space_path_loss(d_hap, const.CARRIER_FREQ_GHZ), K_HAP_STATIC)**2
+    links.append({'name': 'HAP', 'rx_w': rx_hap, 'is_ntn': True, 'pos': hap_coord})
+    
+    d_leo = distance_3D(leo_coord, ue_pos)
+    rx_leo = const.TX_POWER_LEO_W * channel_coefficient(GAIN_LEO_DBI, free_space_path_loss(d_leo, const.CARRIER_FREQ_GHZ), K_LEO_STATIC)**2
+    links.append({'name': 'LEO', 'rx_w': rx_leo, 'is_ntn': True, 'pos': leo_coord})
+
+    # Terrestrial Links
+    gbs_powers_w = [] # List of GBS rx power for futre ref. to calculate SINR
+    
+    for i, bs_pos in enumerate(bs_coords):
+        d_gbs = distance_3D(bs_pos, ue_pos) 
+        k_db = np.random.normal(K_UMA_DB_MEAN, K_UMA_DB_STD)  # Nromal distributin
+        rx_gbs = const.TX_POWER_GBS_W * channel_coefficient(GAIN_GBS_DBI, path_loss(d_gbs, const.CARRIER_FREQ_GHZ), k_db)**2
+        
+        gbs_powers_w.append(rx_gbs)  
+        links.append({'name': f'GBS_{i}', 'rx_w': rx_gbs, 'is_ntn': False, 'pos': bs_pos})
+        
+    return links, gbs_powers_w
+
+# 3D plotting
+def plot_topology(df, bs_coords, hap_coord, leo_coord, ue_coords):
+    """Handles all Matplotlib rendering separately from the logic."""
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+
+    for bs in bs_coords: 
+        draw_hexagon(ax, bs, radius=const.CELL_RADIUS)
+
+    ax.scatter(ue_coords[:,0], ue_coords[:,1], ue_coords[:,2], c='red', s=15, label='UE')
+    ax.scatter(bs_coords[:,0], bs_coords[:,1], bs_coords[:,2], c='blue', marker='^', s=120, label='Ground BS')
+    ax.scatter(*hap_coord, c='black', marker='^', s=120, label='HAP')
+    ax.scatter(*leo_coord, c='green', marker='^', s=120, label='LEO')
+
+    # Draw lines using stored coordinates in DataFrame
+    for _, row in df.iterrows():
+        u_pos = ue_coords[row['UE_Idx']]
+        r_pos = row['RU_Pos']
+        color = '#ff7f0e' if row['Is_NTN'] else '#1f77b4'
+        ax.plot([u_pos[0], r_pos[0]], [u_pos[1], r_pos[1]], [u_pos[2], r_pos[2]], color=color, alpha=0.6, lw=1)
+
+    ax.set_box_aspect([1, 1, 0.6])
+    ax.set(xlabel='X (m)', ylabel='Y (m)', zlabel='Altitude (m)', title='Primary Path Allocation')
+    plt.tight_layout()
+    plt.show()
+    
+def analyze_primary_paths():
+    """Main loop for greedy allocation."""
     bs_coords = get_hexagonal_bs(radius=const.CELL_RADIUS, num_gbs=const.NUM_GBS)  
     hap_coord, leo_coord = get_ntn_nodes()
     
     np.random.seed(42) 
     ue_coords = get_random_users(n=const.NUM_UE)
-
     results = []
-    
-    # 2. Calculate Link Budgets & Capacity
-    for ue_id in range(len(ue_coords)):
-        ue_pos = ue_coords[ue_id]
 
-        best_ru_name = None
-        max_rx_power_w = 0.0
-        best_is_ntn = False
-        dist_to_primary = 0.0
-
-        # Evaluate HAP Link
-        dist_hap = distance_3D(hap_coord, ue_pos)
-        pl_hap_db = free_space_path_loss(dist_hap, const.CARRIER_FREQ_GHZ)
-        h_hap_mag = channel_coefficient(GAIN_HAP_DBI, pl_hap_db, K_HAP_STATIC)
-        rx_hap_w = const.TX_POWER_HAP_W * (h_hap_mag**2)
-
-        if rx_hap_w > max_rx_power_w:
-            max_rx_power_w = rx_hap_w
-            best_ru_name = 'HAP'
-            best_is_ntn = True
-            dist_to_primary = dist_hap
-
-        # Evaluate LEO Link
-        dist_leo = distance_3D(leo_coord, ue_pos)
-        pl_leo_db = free_space_path_loss(dist_leo, const.CARRIER_FREQ_GHZ)
-        h_leo_mag = channel_coefficient(GAIN_LEO_DBI, pl_leo_db, K_LEO_STATIC)
-        rx_leo_w = const.TX_POWER_LEO_W * (h_leo_mag**2)
-
-        if rx_leo_w > max_rx_power_w:
-            max_rx_power_w = rx_leo_w
-            best_ru_name = 'LEO'
-            best_is_ntn = True
-            dist_to_primary = dist_leo
-
-        # Evaluate Terrestrial Links (Ground Base Stations)
-        gbs_powers_w = [] # Store all terrestrial powers to calculate interference 
+    for ue_id, ue_pos in enumerate(ue_coords):
+        # 1. Calculate all available links for this UE
+        links, gbs_powers = get_all_link_budgets(ue_pos, bs_coords, hap_coord, leo_coord)
         
-        for bs_id in range(len(bs_coords)):
-            bs_pos = bs_coords[bs_id]
-            dist_gbs = distance_3D(bs_pos, ue_pos)
-            
-            pl_gbs_db = path_loss(dist_gbs, const.CARRIER_FREQ_GHZ)
-            k_db = np.random.normal(K_UMA_DB_MEAN, K_UMA_DB_STD)
-            h_gbs_mag = channel_coefficient(GAIN_GBS_DBI, pl_gbs_db, k_db)
-            
-            rx_gbs_w = const.TX_POWER_GBS_W * (h_gbs_mag**2)
-            gbs_powers_w.append(rx_gbs_w)
+        # 2. Greedy Choice: Find the dictionary with the highest rx_w
+        best_link = max(links, key=lambda x: x['rx_w'])
+        
+        # 3. Calculate final metrics based on the best link
+        interference_w = 0.0 if best_link['is_ntn'] else sum(gbs_powers) - best_link['rx_w']
+        
+        sinr_lin = sinr(1.0, best_link['rx_w'], interference_w, const.NOISE_SPECTRAL_DENSITY_W, const.BANDWIDTH_HZ)
+        
+        MAX_SE = 8.0 # Maximum Spectral effeciency of 8 bps/Hz
+        new_sinr_lin = min(np.log2(1+sinr_lin), MAX_SE) ; 
+        
+        cap_mbps = rate(const.BANDWIDTH_HZ, new_sinr_lin) / 1e6
 
-            # Greedy Logic
-            if rx_gbs_w > max_rx_power_w:
-                max_rx_power_w = rx_gbs_w
-                best_ru_name = f'GBS_{bs_id}'
-                best_is_ntn = False
-                dist_to_primary = dist_gbs
-
-        # Calculate SINR
-        if best_is_ntn:
-            # NTN links are modeled with zero terrestrial interference
-            interference_w = 0.0 
-        else:
-            # Terrestrial interference is the sum of all GBS signals MINUS the one we connected to
-            total_gbs_power = sum(gbs_powers_w)
-            interference_w = total_gbs_power - max_rx_power_w
-
-        sinr_linear = sinr(1.0, max_rx_power_w, interference_w, const.NOISE_SPECTRAL_DENSITY_W, const.BANDWIDTH_HZ)
-        capacity_mbps = rate(const.BANDWIDTH_HZ, sinr_linear) / 1e6
-
+        # Append structured data
         results.append({
-            "UE_ID": f"UE_{ue_id:03d}",
-            "Primary_RU": best_ru_name,
-            "Rx_Power_dBm": round(10 * np.log10(max_rx_power_w) + 30, 2),
-            "Capacity_Mbps": round(capacity_mbps, 2)
+            "UE_Idx": ue_id, 
+            "UE_ID": f"UE_{ue_id:02d}",
+            "Primary_RU": best_link['name'],
+            "Is_NTN": best_link['is_ntn'],
+            "RU_Pos": best_link['pos'], 
+            "Rx_Power_dBm": round(10 * np.log10(best_link['rx_w']) + 30, 2),
+            "Capacity_Mbps": round(cap_mbps, 2)
         })
 
-    # 3. Generate Tabular Output
+    # Print  Summary 
     df = pd.DataFrame(results)
-    pd.set_option('display.max_rows', None)
     
-    print("\nUSER EQUIPMENT PRIMARY PATH & CAPACITY")
-    print(df.to_string(index=False)) 
-        
-    # Connection Summary 
-    hap_count = len(df[df['Primary_RU'] == 'HAP'])
-    leo_count = len(df[df['Primary_RU'] == 'LEO'])
-    gbs_count = len(df[df['Primary_RU'].str.startswith('GBS')])
+    print("\nNETWORK CONNECTION SUMMARY ")
+    print(f"Ground BS connected UEs  : {len(df[~df['Is_NTN']])}")
+    print(f"HAP connected UEs        : {len(df[df['Primary_RU'] == 'HAP'])}")
+    print(f"LEO connected UEs        : {len(df[df['Primary_RU'] == 'LEO'])}")
+    print(f"System Cap : {df['Capacity_Mbps'].sum():.2f} Mbps\n")
+
+    print(df[['UE_ID', 'Primary_RU', 'Rx_Power_dBm', 'Capacity_Mbps']].to_string(index=False))
     
-    print("\nNETWORK CONNECTION SUMMARY")
-    print(f"Total UEs connected to GBS (Terrestrial) : {gbs_count}")
-    print(f"Total UEs connected to HAP (NTN)         : {hap_count}")
-    print(f"Total UEs connected to LEO (NTN)         : {leo_count}")
-    
-    sum_capacity = df['Capacity_Mbps'].sum()
-    print(f"\n[SYSTEM METRIC] Overall Sum Capacity: {sum_capacity:.2f} Mbps")
-
-    # 4. Generate Visual Topology Plot
-    fig = plt.figure(figsize=(12, 10))
-    ax = fig.add_subplot(111, projection='3d')
-
-    # Draw hexagonal cells
-    for bs in bs_coords:
-        draw_hexagon(ax, bs, radius=const.CELL_RADIUS)
-
-    # Plot the physical nodes
-    ax.scatter(ue_coords[:,0], ue_coords[:,1], ue_coords[:,2], c='red', s=15, label='UE', zorder=5)
-    ax.scatter(bs_coords[:,0], bs_coords[:,1], bs_coords[:,2], c='blue', marker='^', s=120, label='Ground BS', zorder=10)
-    ax.scatter(hap_coord[0], hap_coord[1], hap_coord[2], c='black', marker='^', s=120, label='HAP', zorder=10)
-    ax.scatter(leo_coord[0], leo_coord[1], leo_coord[2], c='green', marker='^', s=120, label='LEO', zorder=10)
-
-    # Draw the Primary Paths
-    for ue_id, row in df.iterrows():
-        ue_pos = ue_coords[ue_id]
-        ru_name = row['Primary_RU']
-        
-        # Manually extract the coordinates of the chosen RU for the plot
-        if ru_name == 'HAP':
-            ru_pos = hap_coord
-        elif ru_name == 'LEO':
-            ru_pos = leo_coord
-        else:
-            bs_index = int(ru_name.split('_')[1])
-            ru_pos = bs_coords[bs_index]
-        
-        line_color ='#1f77b4' if 'GBS' in ru_name else '#ff7f0e'
-        line_alpha = 0.85 
-        line_width = 1.2
-        
-        ax.plot([ue_pos[0], ru_pos[0]], 
-                [ue_pos[1], ru_pos[1]], 
-                [ue_pos[2], ru_pos[2]], 
-                color=line_color, linestyle='-', linewidth=line_width, alpha=line_alpha)
-
-    ax.set_box_aspect([1, 1, 0.6])
-    ax.set_xlabel('X (m)')
-    ax.set_ylabel('Y (m)')
-    ax.set_zlabel('Altitude Z (m)')
-    ax.set_title('Network Topology: Primary Path Allocation')
-    
-    # Custom legend
-    handles, labels = ax.get_legend_handles_labels()
-    handles.append(Line2D([0], [0], color='#1f77b4', lw=2, alpha=0.85))
-    labels.append('Terrestrial Link')
-    handles.append(Line2D([0], [0], color='#ff7f0e', lw=2, alpha=0.85))
-    labels.append('NTN Link')
-    ax.legend(handles=handles, labels=labels, loc='upper right')
-    
-    plt.tight_layout()
-    plt.show()
+    # Send all data to the plotting function
+    plot_topology(df, bs_coords, hap_coord, leo_coord, ue_coords)
 
 if __name__ == "__main__":
     analyze_primary_paths()
+    

@@ -26,7 +26,7 @@ def evaluate_link(p_tx, h_sq, interference, dist):
     return is_successful, a_in
 
 
-def run_simulation(num_users=const.NUM_UE, num_gbs=const.NUM_GBS, fixed_rb_value=10, seed_val=None, verbose=True):
+def run_simulation(num_users=const.NUM_UE, num_gbs=const.NUM_GBS, fixed_rb_value=10, drop_threshold = 0.70, seed_val=None, verbose=True):
     
     if seed_val is not None:
         np.random.seed(seed_val)
@@ -83,6 +83,7 @@ def run_simulation(num_users=const.NUM_UE, num_gbs=const.NUM_GBS, fixed_rb_value
         active_nodes=active_nodes, 
         failed_bs_indices=failed_bs_indices,
         fixed_rb_value=fixed_rb_value,
+        drop_threshold=drop_threshold, 
         verbose=verbose
     )
 
@@ -101,27 +102,33 @@ def run_simulation(num_users=const.NUM_UE, num_gbs=const.NUM_GBS, fixed_rb_value
 
 
 def run_monte_carlo_averaging(num_gbs=7, fixed_rbs=10, runs_per_scenario=50):
-    user_counts = [20, 50, 100, 250, 500, 750, 1000]
+    user_counts = [20, 40, 60, 80, 100]
     resilience_results = []
     
     global_affected = 0
     global_recovered = 0
     
     print(f"\n Monte Carlo Simulation ({runs_per_scenario} Runs/Point) | {num_gbs} GBS | {fixed_rbs} RBs")
-    print(f"{'Total UEs':<10} | {'Avg Affected UEs':<10} | {'Average Network Resilience':<15}")
+    print(f"{'Total UEs':<10} | {'Affected UEs':<14} | {'Recovered UEs':<15} | {'Network Resilience'}")
     
     for total_users in user_counts:
         runs = [run_simulation(num_users=total_users, num_gbs=num_gbs, fixed_rb_value=fixed_rbs, seed_val=i, verbose=False)
                 for i in range(runs_per_scenario)]
             
+        # Calculate the averages for the table
         avg_affected = np.mean([r[0] for r in runs])
         avg_resilience = np.mean([r[1] for r in runs])
+        
+        # Calculate average recovered users (Affected * Resilience %)
+        avg_recovered = np.mean([r[0] * (r[1] / 100) for r in runs])
+        
         resilience_results.append(avg_resilience)
         
+        # Calculate global totals for the final weighted average
         global_affected += sum(r[0] for r in runs)
         global_recovered += sum(r[0] * (r[1] / 100) for r in runs)
         
-        print(f"{total_users:<10} | {round(avg_affected):<10} | {avg_resilience:<15.2f}%")
+        print(f"{total_users:<10} | {round(avg_affected):<14} | {round(avg_recovered):<15} | {avg_resilience:.2f}%")
 
     weighted_avg = (global_recovered / global_affected * 100) if global_affected > 0 else 100.0
     print(f"TRUE WEIGHTED AVERAGE RESILIENCE : {weighted_avg:.2f}%\n")
@@ -145,12 +152,11 @@ def generate_report(total_users, res_10_rb, res_20_rb):
 
 
 if __name__ == "__main__":
-    print(" Running Single Verbose Debug Scenario ")
-    run_simulation(num_users=250, num_gbs=7, fixed_rb_value=10, seed_val=42, verbose=True)
-    
+        
     print("\n Running Full Monte Carlo Batch ")
     res_10 = run_monte_carlo_averaging(num_gbs=7, fixed_rbs=10, runs_per_scenario=50)
     res_20 = run_monte_carlo_averaging(num_gbs=7, fixed_rbs=20, runs_per_scenario=50)
     
-    total_users = [20, 50, 100, 250, 500, 750, 1000]
+    total_users = [20, 40, 60, 80, 100]
     generate_report(total_users, res_10, res_20)
+    

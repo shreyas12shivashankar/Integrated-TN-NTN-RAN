@@ -32,20 +32,14 @@ def calculate_theoretical_availability():
     phi_10_rbs = np.zeros(len(n_affected))
     phi_20_rbs = np.zeros(len(n_affected))
     
-    # Standard readable loop to calculate shareability at every point on the graph
-    for i in range(len(n_affected)):
-        users = n_affected[i]
-        
-        if users > 0:
-            # If affected users exceed the available RBs, they share the capacity
-            phi_10_rbs[i] = min(1.0, 10 / users)
-            phi_20_rbs[i] = min(1.0, 20 / users)
-        else:
-            # If no users are affected, shareability is perfect
-            phi_10_rbs[i] = 1.0
-            phi_20_rbs[i] = 1.0
+    # To calculate shareability     
+    # If affected users exceed the available RBs, they share the capacity , otherwise shareability is 1.0
 
-    # Scenario 3: Backup Path Availabilities
+    phi_10_rbs = np.where(n_affected > 0, np.minimum(1.0, 10 / n_affected), 1.0)
+    phi_20_rbs = np.where(n_affected > 0, np.minimum(1.0, 20 / n_affected), 1.0)
+    
+
+    # Case 3: Backup Path Availabilities
     a_backup_10 = a_single + ((1 - a_single) * a_backup_path * phi_10_rbs)
     a_backup_20 = a_single + ((1 - a_single) * a_backup_path * phi_20_rbs)
 

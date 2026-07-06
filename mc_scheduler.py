@@ -69,57 +69,50 @@
 
 #     return resilience_percentage, backup_paths, affected_users
 
-def allocate_backup_paths(affected_users, active_nodes, failed_bs_indices, fixed_rb_value=10, verbose=False):
+def allocate_backup_paths(affected_users, active_nodes, failed_bs_indices, fixed_rb_value=10, drop_threshold=0.70, verbose=False):
     """
-    Executes the Risk-Aware Backup Path Allocation (Algorithm 1).
-    Groups users by risk, calculates shareability, and dynamically offloads users.
+    Executes Risk-Aware Backup Path Allocation (Algorithm 1).
+    Mathematically aligns with the global shareability formula: phi = min(1.0, B / N)
     """
     if not affected_users:
         return 0, {}
 
-    # 1. Risk-Disjoint Grouping (Group by the specific GBS that failed)
-    groups = {bs_idx: [] for bs_idx in failed_bs_indices}
-    for user in affected_users:
-        if user["primary_gbs"] in groups:
-            groups[user["primary_gbs"]].append(user)
-            
     allocated_loads = {node: 0 for node in active_nodes}
+    node_demand = {node: 0 for node in active_nodes}
+    user_preferences = {}
     recovered_count = 0
 
-    # 2. Shareability & Offload Allocation Loop
-    for bs_idx, group_users in groups.items():
-        Ni_group_size = len(group_users)
+    # --- PASS 1: Global Demand Prediction ---
+    for user in affected_users:
+        available_links = {node: user[node] for node in active_nodes if node in user}
         
-        if Ni_group_size == 0:
-            continue
+        if available_links:
+            best_node = max(available_links, key=available_links.get)
+            user_preferences[user["ue_id"]] = (best_node, available_links[best_node])
+            node_demand[best_node] += 1
+        else:
+            user_preferences[user["ue_id"]] = (None, 0.0)
+
+    # --- PASS 2: Global Shareability Penalty ---
+    for user in affected_users:
+        ue_id = user["ue_id"]
+        pref_node, a_in = user_preferences[ue_id]
+        
+        if pref_node:
+            # phi is calculated based on the TOTAL demand for this node, matching plot_availability.py
+            phi = min(1.0, fixed_rb_value / node_demand[pref_node]) 
+            b_in = a_in * phi 
             
-        for user in group_users:
-            best_node = None
-            best_b_in = -1.0
-            
-            for node_name in active_nodes:
-                if node_name in user: # If the physical link exists
-                    a_in = user[node_name]
-                    
-                    # Predict load to calculate dynamic shareability penalty
-                    proposed_load = allocated_loads[node_name] + 1
-                    phi = min(1.0, fixed_rb_value / proposed_load) 
-                    
-                    # Calculate Shared E2E Availability (b_in)
-                    b_in = a_in * phi 
-                    
-                    if b_in > best_b_in:
-                        best_b_in = b_in
-                        best_node = node_name
-            
-            # Tuning drop threshold set to 0.70 based on paper charts
-            if best_node is not None and best_b_in >= 0.70: 
-                allocated_loads[best_node] += 1
+            if b_in >= drop_threshold: 
+                allocated_loads[pref_node] += 1
                 recovered_count += 1
                 if verbose:
-                    print(f"UE {user['ue_id']:<3} -> Assigned to {best_node} (Score: {best_b_in:.3f})")
+                    print(f"UE {ue_id:<3} -> {pref_node:<6} (b_in: {b_in:.3f} | phi: {phi:.2f})")
             else:
                 if verbose:
-                    print(f"UE {user['ue_id']:<3} -> DROPPED")
+                    print(f"UE {ue_id:<3} -> DROPPED (b_in: {b_in:.3f} < {drop_threshold})")
+        else:
+            if verbose:
+                print(f"UE {ue_id:<3} -> DROPPED (No valid physical links)")
 
     return recovered_count, allocated_loads
