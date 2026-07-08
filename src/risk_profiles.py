@@ -6,7 +6,7 @@ def generate_bs_failure_scenario(total_users, total_bs, failed_bs_list):
     Identifies which users are geographically affected by the failing base stations.
     """
     # Generate the exact same deterministic topology as the main simulation
-    bs_coords = get_hexagonal_bs(radius=750)
+    bs_coords = get_hexagonal_bs(radius=2000)
     
     # Use the same seed as the main simulation to ensure user coordinates match exactly
     np.random.seed(42) 

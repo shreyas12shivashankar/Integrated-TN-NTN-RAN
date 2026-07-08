@@ -26,8 +26,7 @@ def evaluate_link(p_tx, h_sq, interference, dist):
     return is_successful, a_in
 
 
-def run_simulation(num_users=const.NUM_UE, num_gbs=const.NUM_GBS, fixed_rb_value=10, drop_threshold = 0.70, seed_val=None, verbose=True):
-    
+def run_simulation(num_users=const.NUM_UE, num_gbs=const.NUM_GBS, fixed_rb_value=10, seed_val=None, verbose=True):
     if seed_val is not None:
         np.random.seed(seed_val)
     
@@ -37,7 +36,6 @@ def run_simulation(num_users=const.NUM_UE, num_gbs=const.NUM_GBS, fixed_rb_value
     
     failed_bs_indices = [6] 
     
-    # 1. Map link availabilities(a_in) for affected users
     affected_users = []
     
     for ue_id, ue_pos in enumerate(ue_coords):
@@ -49,7 +47,6 @@ def run_simulation(num_users=const.NUM_UE, num_gbs=const.NUM_GBS, fixed_rb_value
             
         user_links = {"ue_id": ue_id, "primary_gbs": primary_idx}
         
-        # Check NTN Links
         ntn_configs = [('HAP', hap_coord, 32.0, const.TX_POWER_HAP_W), 
                        ('LEO', leo_coord, 38.0, const.TX_POWER_LEO_W)]
         for name, coord, gain, p_tx in ntn_configs:
@@ -59,7 +56,6 @@ def run_simulation(num_users=const.NUM_UE, num_gbs=const.NUM_GBS, fixed_rb_value
             if success:
                 user_links[name] = a_in
                 
-        # Check Neighboring GBS Links
         rx_powers = []
         for d_gbs in dists_gbs:
             h_sq = channel_coefficient(8.0, path_loss(d_gbs, const.CARRIER_FREQ_GHZ), np.random.normal(9.0, 3.5))**2
@@ -75,7 +71,6 @@ def run_simulation(num_users=const.NUM_UE, num_gbs=const.NUM_GBS, fixed_rb_value
                 
         affected_users.append(user_links)
 
-    # 2. Call the Scheduler
     active_nodes = ['HAP', 'LEO'] + [f'GBS_{i}' for i in range(num_gbs) if i not in failed_bs_indices]
     
     recovered_count, allocated_loads = allocate_backup_paths(
@@ -83,52 +78,46 @@ def run_simulation(num_users=const.NUM_UE, num_gbs=const.NUM_GBS, fixed_rb_value
         active_nodes=active_nodes, 
         failed_bs_indices=failed_bs_indices,
         fixed_rb_value=fixed_rb_value,
-        drop_threshold=drop_threshold, 
         verbose=verbose
     )
 
     affected_count = len(affected_users)
     resilience = (recovered_count / affected_count * 100) if affected_count > 0 else 100.0
     
-    if verbose:
-        print("\n Recovery Summary ")
-        print(f"Total Affected: {affected_count} | Total Rescued: {recovered_count}")
-        for node, load in allocated_loads.items():
-            if load > 0:
-                print(f"  - {node:<6} rescued {load} UEs")
-        print(f"Final Resilience: {resilience:.2f}%\n")
-        
-    return affected_count, resilience
+    return affected_count, resilience, allocated_loads
 
 
 def run_monte_carlo_averaging(num_gbs=7, fixed_rbs=10, runs_per_scenario=50):
-    user_counts = [20, 40, 60, 80, 100]
+    
+    user_counts = [50, 100, 150, 200, 250, 300, 400, 500]
     resilience_results = []
     
     global_affected = 0
     global_recovered = 0
     
-    print(f"\n Monte Carlo Simulation ({runs_per_scenario} Runs/Point) | {num_gbs} GBS | {fixed_rbs} RBs")
-    print(f"{'Total UEs':<10} | {'Affected UEs':<14} | {'Recovered UEs':<15} | {'Network Resilience'}")
+    print(f"\nMonte Carlo Simulation ({runs_per_scenario} Runs/Point) | {num_gbs} GBS | {fixed_rbs} RBs")
+    
+    print(f"{'Total UEs':<10} | {'Affected':<10} | {'Recovered':<10} | {'HAP':<6} | {'LEO':<6} | {'GBS':<6} | {'Network Resilience'}")
     
     for total_users in user_counts:
         runs = [run_simulation(num_users=total_users, num_gbs=num_gbs, fixed_rb_value=fixed_rbs, seed_val=i, verbose=False)
                 for i in range(runs_per_scenario)]
             
-        # Calculate the averages for the table
         avg_affected = np.mean([r[0] for r in runs])
         avg_resilience = np.mean([r[1] for r in runs])
-        
-        # Calculate average recovered users (Affected * Resilience %)
         avg_recovered = np.mean([r[0] * (r[1] / 100) for r in runs])
+        
+        avg_hap = np.mean([r[2].get('HAP', 0) for r in runs])
+        avg_leo = np.mean([r[2].get('LEO', 0) for r in runs])
+        # Sums all active GBS connections together
+        avg_gbs = np.mean([sum(v for k, v in r[2].items() if k.startswith('GBS')) for r in runs])
         
         resilience_results.append(avg_resilience)
         
-        # Calculate global totals for the final weighted average
         global_affected += sum(r[0] for r in runs)
         global_recovered += sum(r[0] * (r[1] / 100) for r in runs)
         
-        print(f"{total_users:<10} | {round(avg_affected):<14} | {round(avg_recovered):<15} | {avg_resilience:.2f}%")
+        print(f"{total_users:<10} | {round(avg_affected):<10} | {round(avg_recovered):<10} | {round(avg_hap):<6} | {round(avg_leo):<6} | {round(avg_gbs):<6} | {avg_resilience:.2f}%")
 
     weighted_avg = (global_recovered / global_affected * 100) if global_affected > 0 else 100.0
     print(f"TRUE WEIGHTED AVERAGE RESILIENCE : {weighted_avg:.2f}%\n")
@@ -143,7 +132,7 @@ def generate_report(total_users, res_10_rb, res_20_rb):
     plt.title('Average Network Resilience vs. Total Users (7 GBS Topology)', fontsize=14, pad=15)
     plt.xlabel('Total Users in Network', fontsize=12)
     plt.ylabel('Network Resilience (%)', fontsize=12)
-    plt.xlim(100, 1000)
+    plt.xlim(40, 410)
     plt.ylim(0, 105) 
     plt.grid(True, linestyle='--', alpha=0.7)
     plt.legend(loc='upper right', fontsize=11)
@@ -157,6 +146,6 @@ if __name__ == "__main__":
     res_10 = run_monte_carlo_averaging(num_gbs=7, fixed_rbs=10, runs_per_scenario=50)
     res_20 = run_monte_carlo_averaging(num_gbs=7, fixed_rbs=20, runs_per_scenario=50)
     
-    total_users = [20, 40, 60, 80, 100]
+    total_users = [50, 100, 150, 200, 250, 300, 400, 500]
     generate_report(total_users, res_10, res_20)
     
