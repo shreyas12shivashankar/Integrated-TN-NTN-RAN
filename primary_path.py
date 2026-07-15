@@ -23,23 +23,35 @@ def get_all_link_budgets(ue_pos, bs_coords, hap_coord, leo_coord):
     
     # NTN Links
     d_hap = distance_3D(hap_coord, ue_pos)
-    rx_hap = const.TX_POWER_HAP_W * channel_coefficient(GAIN_HAP_DBI, free_space_path_loss(d_hap, const.CARRIER_FREQ_GHZ), K_HAP_STATIC)**2
-    links.append({'name': 'HAP', 'rx_w': rx_hap, 'is_ntn': True, 'pos': hap_coord})
+    h_sq_hap = channel_coefficient(GAIN_HAP_DBI, free_space_path_loss(d_hap, const.CARRIER_FREQ_GHZ), K_HAP_STATIC)**2
+    rx_hap = const.TX_POWER_HAP_W * h_sq_hap
+    links.append({
+        'name': 'HAP', 'rx_w': rx_hap, 'is_ntn': True, 'pos': hap_coord, 
+        'dist': d_hap, 'p_tx': const.TX_POWER_HAP_W, 'h_sq': h_sq_hap
+    })
     
     d_leo = distance_3D(leo_coord, ue_pos)
-    rx_leo = const.TX_POWER_LEO_W * channel_coefficient(GAIN_LEO_DBI, free_space_path_loss(d_leo, const.CARRIER_FREQ_GHZ), K_LEO_STATIC)**2
-    links.append({'name': 'LEO', 'rx_w': rx_leo, 'is_ntn': True, 'pos': leo_coord})
+    h_sq_leo = channel_coefficient(GAIN_LEO_DBI, free_space_path_loss(d_leo, const.CARRIER_FREQ_GHZ), K_LEO_STATIC)**2
+    rx_leo = const.TX_POWER_LEO_W * h_sq_leo
+    links.append({
+        'name': 'LEO', 'rx_w': rx_leo, 'is_ntn': True, 'pos': leo_coord, 
+        'dist': d_leo, 'p_tx': const.TX_POWER_LEO_W, 'h_sq': h_sq_leo
+    })
 
     # Terrestrial Links
-    gbs_powers_w = [] # List of GBS rx power for futre ref. to calculate SINR
+    gbs_powers_w = [] 
     
     for i, bs_pos in enumerate(bs_coords):
         d_gbs = distance_3D(bs_pos, ue_pos) 
-        k_db = np.random.normal(K_UMA_DB_MEAN, K_UMA_DB_STD)  # Nromal distributin
-        rx_gbs = const.TX_POWER_GBS_W * channel_coefficient(GAIN_GBS_DBI, path_loss(d_gbs, const.CARRIER_FREQ_GHZ), k_db)**2
+        k_db = np.random.normal(K_UMA_DB_MEAN, K_UMA_DB_STD) 
+        h_sq_gbs = channel_coefficient(GAIN_GBS_DBI, path_loss(d_gbs, const.CARRIER_FREQ_GHZ), k_db)**2
+        rx_gbs = const.TX_POWER_GBS_W * h_sq_gbs
         
         gbs_powers_w.append(rx_gbs)  
-        links.append({'name': f'GBS_{i}', 'rx_w': rx_gbs, 'is_ntn': False, 'pos': bs_pos})
+        links.append({
+            'name': f'GBS_{i}', 'rx_w': rx_gbs, 'is_ntn': False, 'pos': bs_pos, 
+            'dist': d_gbs, 'p_tx': const.TX_POWER_GBS_W, 'h_sq': h_sq_gbs
+        })
         
     return links, gbs_powers_w
 
@@ -90,8 +102,8 @@ def analyze_primary_paths():
         
         sinr_lin = sinr(1.0, best_link['rx_w'], interference_w, const.NOISE_SPECTRAL_DENSITY_W, const.BANDWIDTH_HZ)
         
-        MAX_SE = 8.0 # Maximum Spectral effeciency of 8 bps/Hz
-        new_sinr_lin = min(np.log2(1+sinr_lin), MAX_SE) ; 
+        MAX_SE = 8.0 # Maximum Spectral effeciency of 8 bps/Hz considering maximum of 256-QAM
+        new_sinr_lin = min(np.log2(1+sinr_lin), MAX_SE) ; # Capped to maximum of 256-QAM
         
         cap_mbps = rate(const.BANDWIDTH_HZ, new_sinr_lin) / 1e6
 

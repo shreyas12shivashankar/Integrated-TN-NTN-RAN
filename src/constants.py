@@ -35,10 +35,10 @@ MODULATION_M = 16
 
 # Network toplogy parameters
 NUM_GBS = 7           # Number of ground base stations
-AREA_SQ_KM = 10        # Total network service area in square kilometers
+#AREA_SQ_KM = 6        # Total network service area in square kilometers
 
-CELL_RADIUS = 2000   # Calcualted to cover entire 100 sq.km
-AREA_RANGE = 5000    
+CELL_RADIUS = 750   # Calcualted to cover entire 10 sq.km
+AREA_RANGE = 1650    
 NUM_UE = 100       
 
 ALTITUDE_HAP = 20000    # 20 Km

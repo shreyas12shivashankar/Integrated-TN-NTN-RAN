@@ -19,15 +19,15 @@ K_LEO_STATIC = 15.0   # Static K-factor for LEO satellite links in S-band (12~15
 # Channel Model Functions
 
 def distance_3D(pos_j, pos_n):
-    # Eq (1): Euclidean 3D distance between RU j and UE n.
+    # Eq 1: Euclidean 3D distance between RU j and UE n.
     return np.linalg.norm(np.array(pos_j) - np.array(pos_n))
 
 def path_loss(d_jn, fc_ghz):
-    # Eq (2): Path loss in dB between Terrestrial RU j and UE n.
+    # Eq 2: Path loss in dB between Terrestrial RU j and UE n.
     return 28 + 22 * np.log10(d_jn) + 20 * np.log10(fc_ghz)
 
 def free_space_path_loss(d_jn, fc_ghz):
-    # Eq (3): Free space path loss in dB between NTN RU j and UE n.
+    # Eq 3: Free space path loss in dB between NTN RU j and UE n.
     return 32.45 + 20 * np.log10(d_jn) + 20 * np.log10(fc_ghz)
 
 def get_rician_fading_and_pdf(k_db):
@@ -49,7 +49,7 @@ def get_rician_fading_and_pdf(k_db):
     return w_jn_mag, pdf_density
 
 def channel_coefficient(antenna_gain_db, path_loss_db, k_factor_db):
-    # Eq (4): Channel coefficient between RU j and UE n
+    # Eq 4: Channel coefficient between RU j and UE n
     # Convert dB to linear scale 
     g_jn_linear = 10 ** (antenna_gain_db / 10.0)
     path_loss_linear = 10 ** (path_loss_db / 10.0)
@@ -63,17 +63,17 @@ def channel_coefficient(antenna_gain_db, path_loss_db, k_factor_db):
     return np.sqrt(g_jn_linear / path_loss_linear) * w_jn
 
 def sinr(p_jn, h_sq, interference_power, noise_density, bandwidth):
-    # Eq (5): SINR at UE n from RU j
+    # Eq 5: SINR at UE n from RU j
     noise_power = noise_density * bandwidth
     signal_power = p_jn * h_sq
     return signal_power / (interference_power + noise_power)
 
 def rate(bandwidth, sinr):
-    # Eq (6): Achievable rate from RU j to UE n
+    # Eq 6: Achievable rate from RU j to UE n
     return bandwidth * np.log2(1 + sinr)
 
 def error_probability(sinr, M=16):
-    # Eq (7): Error probability for M-QAM modulation
+    # Eq 7: Error probability for M-QAM modulation
     x = np.sqrt((3 * sinr * np.log2(M)) / (M - 1))
     q_function = 0.5 * erfc(x / np.sqrt(2))
     return (4 / np.log2(M)) * q_function
