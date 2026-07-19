@@ -1,30 +1,50 @@
-import numpy as np
-from src.topology import get_hexagonal_bs, get_random_users
+from src.primary_path import get_all_link_budgets
 
-def generate_bs_failure_scenario(total_users, total_bs, failed_bs_list):
-    """
-    Identifies which users are geographically affected by the failing base stations.
-    """
-    # Generate the exact same deterministic topology as the main simulation
-    bs_coords = get_hexagonal_bs(radius=2000)
-    
-    # Use the same seed as the main simulation to ensure user coordinates match exactly
-    np.random.seed(42) 
-    ue_coords = get_random_users(n=total_users)
-    
+def inject_bs_failure(ue_coords, bs_coords, hap_coord, leo_coord, failed_bs_indices, evaluate_link_func):
+    """ Simulates Ground Base Station failure risk """
     affected_users = []
     
     for ue_id, ue_pos in enumerate(ue_coords):
-        # Find the geographically closest Ground Base Station
-        distances = [np.linalg.norm(ue_pos - bs_pos) for bs_pos in bs_coords]
-        closest_bs_idx = np.argmin(distances)
-        primary_gbs = f"GBS_{closest_bs_idx}"
+        # 1. Fetch pristine links
+        links, gbs_powers = get_all_link_budgets(ue_pos, bs_coords, hap_coord, leo_coord)
         
-        # If their primary GBS is in the failure list, add them to the affected pool
-        if primary_gbs in failed_bs_list:
-            affected_users.append({
-                "ue_id": ue_id,
-                "primary_gbs": primary_gbs
-            })
+        # 2. Determine Primary Path
+        primary_link = max(links, key=lambda x: x['rx_w'])
+        
+        # 3. Check if their primary path is affected
+        if primary_link['is_ntn'] or int(primary_link['name'].split('_')[1]) not in failed_bs_indices:
+            continue
             
+        # 4. User is affected. Hence their primary availability is 0
+        user_links = {
+            "ue_id": ue_id, 
+            "primary_availability": 0.0, 
+            "candidate_links": {}
+        }
+        
+        # 5. Calculate backup candidates under the degraded network conditions
+        for link in links:
+            name = link['name']
+            
+            # Skip failed nodes
+            if name == primary_link['name'] or (not link['is_ntn'] and int(name.split('_')[1]) in failed_bs_indices):
+                continue 
+            
+            # Calculate dynamic interference 
+            interference = 0.0
+            if not link['is_ntn']:
+                raw_interference = sum(p for idx, p in enumerate(gbs_powers) if idx not in failed_bs_indices)
+                interference = raw_interference - link['rx_w'] 
+            
+            # Evaluate the degraded link
+            success, a_in = evaluate_link_func(link['p_tx'], link['h_sq'], interference, link['dist'])
+            if success:
+                user_links["candidate_links"][name] = a_in
+                
+        affected_users.append(user_links)
+        
     return affected_users
+
+# Further risks simulation:
+# def inject_weather_condition()
+# def inject_low_sinr_outage()
