@@ -7,6 +7,7 @@ def get_hexagonal_bs(radius=const.CELL_RADIUS, num_gbs=const.NUM_GBS):
     
     bs_pos = [np.array([0, 0, 0])]  # Center Base station
     
+
     for i in range(min(6,num_gbs-1)):
         # Angle for neighbor centers: 0, 60, 120, 180, 240, 300 degrees
         angle = np.radians(60 * i) 
@@ -43,7 +44,7 @@ if __name__ == "__main__":
     # Generate Data
     bs_coords = get_hexagonal_bs(radius=const.CELL_RADIUS)
     hap_coord, leo_coord = get_ntn_nodes()
-    ue_coords = get_random_users(n=const.NUM_UE, area_range=const.AREA_RANGE) # UEs are distributed within 10 Km x 10 Km area.
+    ue_coords = get_random_users(n=const.NUM_UE, area_range=const.AREA_RANGE) 
 
     # Plotting
     fig = plt.figure()

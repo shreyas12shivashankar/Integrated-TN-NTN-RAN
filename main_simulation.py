@@ -14,7 +14,7 @@ from src.primary_path import get_all_link_budgets
 
 def evaluate_link(p_tx, h_sq, interference, dist, rho_wireless=1.0, rho_backhaul=1.0):
     """
-    Evaluates physical URLLC constraints and returns success status and E2E physical availability (a_in).
+    Evaluates physical URLLC constraints and returns success status and E2E availability (a_jn).
     The strict reliability threshold has been removed to treat availability as a continuous variable.
     """
     
@@ -28,15 +28,15 @@ def evaluate_link(p_tx, h_sq, interference, dist, rho_wireless=1.0, rho_backhaul
     psi_backhaul = 1 - const.BACKHAUL_ERROR_PROB
     
     # 3. Calculate E2E Availability 
-    a_in = (psi_wireless * rho_wireless) * (psi_backhaul * rho_backhaul)
+    a_jn = (psi_wireless * rho_wireless) * (psi_backhaul * rho_backhaul)
     
     # 4. Evaluate URLLC Latency Success
     lat_success, _ = check_transmission_success(cap_mbps, dist, 64, const.LATENCY_THRESHOLD * 1000)
     
-    # 5. Final Success Criteria (Only limited by latency, allowing the scheduler to optimize degraded availability)
+    # 5. Final Success Criteria 
     is_successful = lat_success
     
-    return is_successful, a_in
+    return is_successful, a_jn
 
 
 def run_simulation(num_users=const.NUM_UE, num_gbs=const.NUM_GBS, fixed_rb_value=10, seed_val=None, verbose=True):
@@ -64,14 +64,13 @@ def run_simulation(num_users=const.NUM_UE, num_gbs=const.NUM_GBS, fixed_rb_value
     )
 
     affected_count = len(affected_users)
-    resilience = (recovered_count / affected_count * 100) if affected_count > 0 else 100.0
+    resilience = ((recovered_count / affected_count) * 100) if affected_count > 0 else 100.0
     
     return affected_count, resilience, allocated_loads
 
 
 def run_monte_carlo_averaging(num_gbs=7, fixed_rbs=10, runs_per_scenario=50):
     
-    # Restored to sweep user_counts as per your requirement
     user_counts = [50, 100, 200, 300, 400, 500]
     resilience_results = []
     
@@ -91,7 +90,6 @@ def run_monte_carlo_averaging(num_gbs=7, fixed_rbs=10, runs_per_scenario=50):
         
         avg_hap = round(np.mean([r[2].get('HAP', 0) for r in runs]))
         avg_leo = round(np.mean([r[2].get('LEO', 0) for r in runs]))
-        #avg_gbs = np.mean([sum(v for k, v in r[2].items() if k.startswith('GBS')) for r in runs])
         
         avg_gbs = avg_recovered - (avg_hap + avg_leo)
         
@@ -102,7 +100,7 @@ def run_monte_carlo_averaging(num_gbs=7, fixed_rbs=10, runs_per_scenario=50):
         
         print(f"{total_users:<10} | {avg_affected:<10} | {avg_recovered:<10} | {avg_hap:<6} | {avg_leo:<6} | {avg_gbs:<6} | {avg_resilience:.2f}%")
 
-    weighted_avg = (global_recovered / global_affected * 100) if global_affected > 0 else 100.0
+    weighted_avg = ((global_recovered / global_affected) * 100) if global_affected > 0 else 100.0
     print(f"TRUE WEIGHTED AVERAGE RESILIENCE : {weighted_avg:.2f}%\n")
     
     return resilience_results

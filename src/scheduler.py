@@ -17,14 +17,11 @@ def allocate_backup_paths(affected_users, active_nodes, failed_bs_indices, fixed
             if node in user["candidate_links"]: 
                 competing_users[node] += 1
                 
-    # 2. Calculate Shareability (Eq. 12) dynamically based on local congestion
+    # 2. Calculate Shareability (Eq. 12) based on local congestion
     shareability = {}
     for node in active_nodes:
         N_i = competing_users[node]
-        if N_i > 0:
-            shareability[node] = min(1.0, fixed_rb_value / N_i)
-        else:
-            shareability[node] = 1.0
+        shareability[node] = min(1.0, fixed_rb_value / N_i) if N_i > 0 else 1.0
 
     # 3. Compute b_in (Eq. 13) and rank candidates
     user_queues = []

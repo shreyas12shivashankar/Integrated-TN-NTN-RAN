@@ -11,7 +11,7 @@ GAIN_LEO_DBI = 38.0
 
 # Ricean K-factors in dB for different links
 K_UMA_DB_MEAN = 9.0   # Average K-factor for Urban Macro (UMA) terrestrial links as per 3GPP TR 38.901
-K_UMA_DB_STD = 3.5
+K_UMA_DB_SD = 3.5
 K_HAP_STATIC = 15.0   # Static K-factor for HAP links in S-band (12~15 dB)
 K_LEO_STATIC = 15.0   # Static K-factor for LEO satellite links in S-band (12~15 dB)
 
@@ -44,9 +44,9 @@ def get_rician_fading_and_pdf(k_db):
     # Calculate exact PDF density (Eq 13)
     bessel_term = sp.i0((w_jn_mag * rho) / (sigma**2))
     exponential_term = np.exp(-(w_jn_mag**2 + rho**2) / (2 * sigma**2))
-    pdf_density = (w_jn_mag / sigma**2) * exponential_term * bessel_term
+    pdf = (w_jn_mag / sigma**2) * exponential_term * bessel_term
     
-    return w_jn_mag, pdf_density
+    return w_jn_mag, pdf
 
 def channel_coefficient(antenna_gain_db, path_loss_db, k_factor_db):
     # Eq 4: Channel coefficient between RU j and UE n
@@ -54,9 +54,9 @@ def channel_coefficient(antenna_gain_db, path_loss_db, k_factor_db):
     g_jn_linear = 10 ** (antenna_gain_db / 10.0)
     path_loss_linear = 10 ** (path_loss_db / 10.0)
     
-    # Both Terrestrial and NTN links use the exact mathematical Rician distribution.
-    # NTN links will pass a high static K-factor (e.g., 15 dB), 
-    # which natively converges the fading magnitude (w_jn) to ~1.0.
+    # Both Terrestrial and NTN links use the exact Rician distribution.
+    # NTN links will pass a high static K-factor (e.x. 15 dB), 
+    # which converges the fading magnitude (w_jn) approximetly to 1.0
     w_jn, _ = get_rician_fading_and_pdf(k_factor_db)
            
     # Return absolute channel magnitude |h_jn|

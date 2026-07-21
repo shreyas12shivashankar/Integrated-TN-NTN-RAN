@@ -8,7 +8,7 @@ from src.topology import get_hexagonal_bs, get_random_users, get_ntn_nodes, draw
 from src.system_model import (
     distance_3D, path_loss, free_space_path_loss, channel_coefficient, sinr, rate,
     GAIN_GBS_DBI, GAIN_HAP_DBI, GAIN_LEO_DBI,
-    K_UMA_DB_MEAN, K_UMA_DB_STD, K_HAP_STATIC, K_LEO_STATIC
+    K_UMA_DB_MEAN, K_UMA_DB_SD, K_HAP_STATIC, K_LEO_STATIC
 )
 import src.constants as const
 
@@ -18,7 +18,7 @@ def dbm_to_watts(dbm):
  
 # Evaluate physical links
 def get_all_link_budgets(ue_pos, bs_coords, hap_coord, leo_coord):
-    """Calculates received power for every node and returns a list of dictionaries."""
+    """Calculates received power for every node and returns a list of dictionaries"""
     links = []
     
     # NTN Links
@@ -43,7 +43,7 @@ def get_all_link_budgets(ue_pos, bs_coords, hap_coord, leo_coord):
     
     for i, bs_pos in enumerate(bs_coords):
         d_gbs = distance_3D(bs_pos, ue_pos) 
-        k_db = np.random.normal(K_UMA_DB_MEAN, K_UMA_DB_STD) 
+        k_db = np.random.normal(K_UMA_DB_MEAN, K_UMA_DB_SD) 
         h_sq_gbs = channel_coefficient(GAIN_GBS_DBI, path_loss(d_gbs, const.CARRIER_FREQ_GHZ), k_db)**2
         rx_gbs = const.TX_POWER_GBS_W * h_sq_gbs
         

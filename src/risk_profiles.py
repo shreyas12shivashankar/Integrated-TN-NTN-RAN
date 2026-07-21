@@ -5,7 +5,7 @@ def inject_bs_failure(ue_coords, bs_coords, hap_coord, leo_coord, failed_bs_indi
     affected_users = []
     
     for ue_id, ue_pos in enumerate(ue_coords):
-        # 1. Fetch pristine links
+        # 1. Fetch baseline links
         links, gbs_powers = get_all_link_budgets(ue_pos, bs_coords, hap_coord, leo_coord)
         
         # 2. Determine Primary Path
@@ -22,24 +22,27 @@ def inject_bs_failure(ue_coords, bs_coords, hap_coord, leo_coord, failed_bs_indi
             "candidate_links": {}
         }
         
+        raw_interference = sum(p for idx, p in enumerate(gbs_powers) if idx not in failed_bs_indices)
+
         # 5. Calculate backup candidates under the degraded network conditions
         for link in links:
             name = link['name']
             
-            # Skip failed nodes
-            if name == primary_link['name'] or (not link['is_ntn'] and int(name.split('_')[1]) in failed_bs_indices):
-                continue 
-            
-            # Calculate dynamic interference 
-            interference = 0.0
             if not link['is_ntn']:
-                raw_interference = sum(p for idx, p in enumerate(gbs_powers) if idx not in failed_bs_indices)
-                interference = raw_interference - link['rx_w'] 
+                bs_id = int(name.split('_')[1])
+                
+                # Skip failed nodes
+                if bs_id in failed_bs_indices:
+                    continue
+            
+                interference = raw_interference - link['rx_w']
+            else: 
+                interference = 0.0
             
             # Evaluate the degraded link
-            success, a_in = evaluate_link_func(link['p_tx'], link['h_sq'], interference, link['dist'])
+            success, a_jn = evaluate_link_func(link['p_tx'], link['h_sq'], interference,link['dist'])
             if success:
-                user_links["candidate_links"][name] = a_in
+                user_links["candidate_links"][name] = a_jn
                 
         affected_users.append(user_links)
         
