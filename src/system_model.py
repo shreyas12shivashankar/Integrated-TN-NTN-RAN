@@ -42,9 +42,10 @@ def get_rician_fading_and_pdf(k_db):
     w_jn_mag = stats.rice.rvs(rho / sigma, scale=sigma)
     
     # Calculate exact PDF density (Eq 13)
-    bessel_term = sp.i0((w_jn_mag * rho) / (sigma**2))
-    exponential_term = np.exp(-(w_jn_mag**2 + rho**2) / (2 * sigma**2))
-    pdf = (w_jn_mag / sigma**2) * exponential_term * bessel_term
+    z = (w_jn_mag * rho) / (sigma**2)
+    exponential_adjusted = np.exp(-((w_jn_mag - rho)**2) / (2 * sigma**2))
+    bessel_scaled = sp.ive(0, z)
+    pdf = (w_jn_mag / sigma**2) * exponential_adjusted * bessel_scaled
     
     return w_jn_mag, pdf
 
@@ -91,7 +92,7 @@ def check_transmission_success(capacity_mbps, distance_m, packet_size_bytes=32, 
     d_trans_ms = (packet_size_bits / capacity_bps) * 1000
     d_prop_ms = (distance_m / speed_of_light) * 1000
     
-    # From Table I: Queueing delay bound is 0.3 ms
+    # From reference paper, queueing delay bound is 0.3 ms
     d_queue_ms = 0.3 
     
     # Total one-way delay

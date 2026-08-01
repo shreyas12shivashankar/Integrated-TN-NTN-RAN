@@ -1,97 +1,64 @@
-def allocate_backup_paths(affected_users, active_nodes, failed_bs_indices, fixed_rb_value=10, verbose=False):
-    """
-    Executes Dynamic Risk-Aware Backup Path Allocation (Method 5).
-    Optimized for batch execution by removing redundant loops and sorts.
-    """
-    if not affected_users:
-        return 0, {}
+import math
 
-    # Initialize the trackers
-    allocated_loads = {node: 0 for node in active_nodes}
-    recovered_count = 0
-    
-    # Remaining RBs at each active node
-    remaining_rbs = {node: fixed_rb_value for node in active_nodes}
-    
-    # Number of remaining users competing for each node 
-    remaining_users = {node: 0 for node in active_nodes}
-    
+def form_risk_disjoint_groups(affected_users):
+    if not affected_users: return []
+    risk_map = {}
     for user in affected_users:
-        for node in user["candidate_links"]:
-            remaining_users[node] += 1
-            
-    unallocated_users = {user["ue_id"]: user for user in affected_users}
+        p_node = user.get("primary_node", "Unknown")
+        if p_node not in risk_map: risk_map[p_node] = []
+        risk_map[p_node].append(user)
     
-    # Initial Shareability (phi) 
-    phi = {}
-    for node in active_nodes:
-        N_i = remaining_users[node]
-        phi[node] = min(1.0, remaining_rbs[node] / N_i) if N_i > 0 else 1.0
+    disjoint_groups = []
+    while any(risk_map.values()):
+        current_group = []
+        for p_node in list(risk_map.keys()):
+            if risk_map[p_node]: current_group.append(risk_map[p_node].pop(0))
+        if current_group: disjoint_groups.append(current_group)
+    return disjoint_groups
 
-    # Main Dynamic Allocation Loop
-    while unallocated_users:
-        user_queues = []
-        
-        # Compute b_in for every remaining user
-        for ue_id, user in unallocated_users.items():
+def allocate_backup_paths(affected_users, active_nodes, failed_bs_indices=None, fixed_rb_value=10, verbose=False):
+    if not affected_users: return 0, {}, {}, {}
+
+    disjoint_groups = form_risk_disjoint_groups(affected_users)
+    global_node_usage = {node: 0 for node in active_nodes}
+    allocated_loads = {node: 0 for node in active_nodes}
+    
+    recovered_count = 0
+    final_user_scores = {} 
+
+    for group in disjoint_groups:
+        N_g = len(group)
+        sorted_users = sorted(group, key=lambda x: x["primary_availability"])
+
+        for idx, user in enumerate(sorted_users):
+            ue_id = user["ue_id"]
             a_primary = user["primary_availability"]
-            ranked_candidates = []
+            best_node = None
+            best_b_in = -1
+
+            remaining_in_group = N_g - idx
             
+            # Logic: Evaluates b_in (includes shareability) dynamically
             for node, a_backup in user["candidate_links"].items():
-                b_in = a_primary + (1.0 - a_primary) * a_backup * phi[node]
-                ranked_candidates.append((node, b_in))
-            
-            if ranked_candidates:
-                # Rank this specific user's candidates internally
-                ranked_candidates.sort(key=lambda x: x[1], reverse=True)
+                if node not in global_node_usage: continue
                 
-                user_queues.append({
-                    "ue_id": ue_id,
-                    "user_obj": user,
-                    "ranked_nodes": ranked_candidates,
-                    "best_b_in": ranked_candidates[0][1]
-                })
-
-        # Safety Check
-        if not user_queues:
-            break
-
-        # Find the absolute highest priority user
-        current_user = max(user_queues, key=lambda x: x["best_b_in"])
-        ue_id = current_user["ue_id"]
-        user_obj = current_user["user_obj"]
-        
-        # Allocate the best available node
-        allocated = False
-        for node, b_in in current_user["ranked_nodes"]:
-            if remaining_rbs[node] > 0:
+                U_i = global_node_usage[node]
                 
-                # Update Network Resources
-                remaining_rbs[node] -= 1
-                allocated_loads[node] += 1
-                recovered_count += 1
-                allocated = True
-                
-                if verbose:
-                    print(f"UE {ue_id:<3} -> {node:<6} (b_in: {b_in:.4f} | RBs Left: {remaining_rbs[node]})")
-                break
-                
-        if not allocated and verbose:
-            print(f"UE {ue_id:<3} -> DROPPED (Network Exhausted)")
-
-        # Remove current user from the competition and update phi
-        for node in user_obj["candidate_links"]:
-            if remaining_users[node] > 0:
-                remaining_users[node] -= 1
-                
-            N_i = remaining_users[node]
-            phi[node] = min(1.0, remaining_rbs[node] / N_i) if N_i > 0 else 1.0
+                # STRICT CAPACITY CHECK
+                if U_i < fixed_rb_value:
+                    N_i = U_i + remaining_in_group
+                    phi_i = min(1.0, fixed_rb_value / N_i)
+                    b_in = a_primary + (1.0 - a_primary) * a_backup * phi_i
                     
-        del unallocated_users[ue_id]
+                    if b_in > best_b_in:
+                        best_b_in = b_in
+                        best_node = node
+                        
+            # DYNAMIC ALLOCATION: Update the usage immediately so the next user in the loop sees the new U_i
+            if best_node:
+                global_node_usage[best_node] += 1
+                allocated_loads[best_node] += 1
+                recovered_count += 1
+                final_user_scores[ue_id] = best_b_in
 
-    return recovered_count, allocated_loads
-
-
-# Implment overall sum of a_in  for both versions of schedueler and compare
-# Risk scenarions for NTN links too
-# Eval benchmarks and performace metrics with comparsion for scheduler algo 
+    return recovered_count, allocated_loads, {}, final_user_scores

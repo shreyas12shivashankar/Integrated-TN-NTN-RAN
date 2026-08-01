@@ -13,7 +13,7 @@ from src.system_model import (
 import src.constants as const
 
 def dbm_to_watts(dbm):
-    """Converts a decibel-milliwatt (dBm) value to linear Watts."""
+    """Converts dBm value to Watts."""
     return 10 ** ((dbm - 30) / 10)
  
 # Evaluate physical links
@@ -94,7 +94,7 @@ def analyze_primary_paths():
         # 1. Calculate all available links for this UE
         links, gbs_powers = get_all_link_budgets(ue_pos, bs_coords, hap_coord, leo_coord)
         
-        # 2. Greedy Choice: Find the dictionary with the highest rx_w
+        # 2. Find the dictionary with the highest rx_w
         best_link = max(links, key=lambda x: x['rx_w'])
         
         # 3. Calculate final metrics based on the best link

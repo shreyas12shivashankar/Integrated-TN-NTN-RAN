@@ -15,9 +15,10 @@ def inject_bs_failure(ue_coords, bs_coords, hap_coord, leo_coord, failed_bs_indi
         if primary_link['is_ntn'] or int(primary_link['name'].split('_')[1]) not in failed_bs_indices:
             continue
             
-        # 4. User is affected. Hence their primary availability is 0
+        # 4. User is affected. Hence their primary availability is 0.0 becuase physical availablity (rho_s) of GBS is 0.0
         user_links = {
             "ue_id": ue_id, 
+            "primary_node": primary_link['name'],
             "primary_availability": 0.0, 
             "candidate_links": {}
         }

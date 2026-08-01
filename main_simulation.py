@@ -8,35 +8,29 @@ from src.system_model import (
 )
 import src.constants as const
 from src.risk_profiles import inject_bs_failure
-from src.scheduler2 import allocate_backup_paths
+from src.scheduler import allocate_backup_paths
 from src.primary_path import get_all_link_budgets  
 
 
 def evaluate_link(p_tx, h_sq, interference, dist, rho_wireless=1.0, rho_backhaul=1.0):
-    """
-    Evaluates physical URLLC constraints and returns success status and E2E availability (a_jn).
-    The strict reliability threshold has been removed to treat availability as a continuous variable.
-    """
-    
-    # 1. Calculate Physical Capacity
-    snr_lin = sinr(p_tx, h_sq, interference, const.NOISE_SPECTRAL_DENSITY_W, const.BANDWIDTH_HZ)
-    cap_mbps = rate(const.BANDWIDTH_HZ, snr_lin) / 1e6
+    # 1. Calculate Capacity
+    sinr_lin = sinr(p_tx, h_sq, interference, const.NOISE_SPECTRAL_DENSITY_W, const.BANDWIDTH_HZ)
+    cap_mbps = rate(const.BANDWIDTH_HZ, sinr_lin) / 1e6
     
     # 2. Calculate Reliability (psi_s) for each segment
-    eps = error_probability(snr_lin, const.MODULATION_M)
-    psi_wireless = 1 - eps
+    ep_wireless = error_probability(sinr_lin, const.MODULATION_M)
+    psi_wireless = 1 - ep_wireless
     psi_backhaul = 1 - const.BACKHAUL_ERROR_PROB
-    
+     
     # 3. Calculate E2E Availability 
+    """For simplicty physical availablity (rho) is chosen to be unity (that means, up-time is 100% in normal conditon) and 
+    overall a_jn depends on reliability of segment (psi_s)"""
     a_jn = (psi_wireless * rho_wireless) * (psi_backhaul * rho_backhaul)
     
     # 4. Evaluate URLLC Latency Success
     lat_success, _ = check_transmission_success(cap_mbps, dist, 64, const.LATENCY_THRESHOLD * 1000)
     
-    # 5. Final Success Criteria 
-    is_successful = lat_success
-    
-    return is_successful, a_jn
+    return lat_success, a_jn
 
 
 def run_simulation(num_users=const.NUM_UE, num_gbs=const.NUM_GBS, fixed_rb_value=10, seed_val=None, verbose=True):
@@ -47,7 +41,7 @@ def run_simulation(num_users=const.NUM_UE, num_gbs=const.NUM_GBS, fixed_rb_value
     hap_coord, leo_coord = get_ntn_nodes()
     ue_coords = get_random_users(n=num_users)
     
-    failed_bs_indices = [4, 5, 6] 
+    failed_bs_indices = [4,5,6] # Three ground base stations failed
     active_nodes = ['HAP', 'LEO'] + [f'GBS_{i}' for i in range(num_gbs) if i not in failed_bs_indices]
     
     affected_users = inject_bs_failure(
@@ -55,7 +49,8 @@ def run_simulation(num_users=const.NUM_UE, num_gbs=const.NUM_GBS, fixed_rb_value
         failed_bs_indices, evaluate_link
     )
     
-    recovered_count, allocated_loads = allocate_backup_paths(
+    # Output from scheduler
+    recovered_count, allocated_loads, node_composition, assigned_scores = allocate_backup_paths(
         affected_users=affected_users, 
         active_nodes=active_nodes, 
         failed_bs_indices=failed_bs_indices,
@@ -66,11 +61,40 @@ def run_simulation(num_users=const.NUM_UE, num_gbs=const.NUM_GBS, fixed_rb_value
     affected_count = len(affected_users)
     resilience = ((recovered_count / affected_count) * 100) if affected_count > 0 else 100.0
     
-    return affected_count, resilience, allocated_loads
+    return affected_count, resilience, allocated_loads, node_composition, assigned_scores
+
+
+def plot_risk_disjoint_proof(node_composition):
+    """A function to show the distrubution of recovered users among the backup nodes"""
+    backup_nodes = ['HAP', 'LEO', 'GBS_0', 'GBS_1', 'GBS_2', 'GBS_3']
+    
+    all_primaries = set()
+    for node in backup_nodes:
+        if node in node_composition:
+            all_primaries.update(node_composition[node].keys())
+    
+    all_primaries = sorted(list(all_primaries))
+    
+    node_names = backup_nodes
+    bottoms = np.zeros(len(node_names))
+    
+    plt.figure(figsize=(8, 6))
+    
+    for primary in all_primaries:
+        values = [node_composition.get(node, {}).get(primary, 0) for node in node_names]
+        plt.bar(node_names, values, bottom=bottoms, label=f'Failed {primary}')
+        bottoms += values
+
+    plt.title('Risk-Disjoint Backup Allocation Across Backup Nodes', fontsize=14, pad=15)
+    plt.ylabel('Number of Allocated Users', fontsize=12)
+    plt.yticks(range(0, int(max(bottoms)) + 5, 2))
+    plt.legend(title="Original Primary Node")
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.show()
 
 
 def run_monte_carlo_averaging(num_gbs=7, fixed_rbs=10, runs_per_scenario=50):
-    
     user_counts = [50, 100, 200, 300, 400, 500]
     resilience_results = []
     
@@ -122,10 +146,16 @@ def generate_report(total_users, res_10_rb, res_20_rb):
 
 
 if __name__ == "__main__":
-        
+    # Generate the visual proof of risk-disjoint for the case of 100 UEs
+    print("\nGenerating Risk-Disjoint Proof")
+    _, _, _, single_run_composition,_ = run_simulation(num_users=100, num_gbs=7, fixed_rb_value=10, seed_val=42, verbose=False)
+    plot_risk_disjoint_proof(single_run_composition)
+
+    # Run the main Monte Carlo simulation
     print("\n Running Full Monte Carlo Batch ")
     res_10 = run_monte_carlo_averaging(num_gbs=7, fixed_rbs=10, runs_per_scenario=50)
     res_20 = run_monte_carlo_averaging(num_gbs=7, fixed_rbs=20, runs_per_scenario=50)
     
     total_users = [50, 100, 200, 300, 400, 500]
-    generate_report(total_users, res_10, res_20)    
+    generate_report(total_users, res_10, res_20)
+
