@@ -1,0 +1,20 @@
+scheduler 1 :
+- This version operates on a strict hard cap without any artificial score thresholds.  
+- It only considers a backup node if its total current usage remains strictly below the fixed_rb_value cap. 
+- Because the node never exceeds its RB limit, the shareability penalty is moot, and the link score is calculated using just the raw backup availability.  
+
+scheduler 2 :
+- This version introduces the physical network constraints and queueing physics
+- It calculates whether a node's buffer can handle incoming traffic without violating a 0.3 ms queueing bound using the Effective Bandwidth equation. 
+- It enforces a strict 30 ms End-to-End latency deadline and rejects users if the node's assigned Resource Block (RB) pool is full
+
+scheduler 3 :
+- This version utilizes a dynamic shareability penalty and an artificial admission threshold.  
+- It calculates a penalized score by multiplying the raw backup availability by fixed_rb_value / temp_N_i.
+- It immediately drops any user whose penalized score falls below the hardcoded 0.75 threshold.  
+
+scheduler 4 :
+- This version uses a group-based batching approach rather than evaluating users one by one.
+- It sorts affected users within their disjoint groups based on their primary_availability score. 
+- It computes the final recovery score using a blended formula that mixes the backup link's reliability with the failed primary link's reliability.
+

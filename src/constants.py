@@ -1,4 +1,4 @@
-# Table I : Simulation parameters
+# Simulation parameters
 
 # Backhaul error probability 
 BACKHAUL_ERROR_PROB = 1e-6
@@ -9,35 +9,44 @@ RELIABILITY_THRESHOLD = 0.99999
 # Latency threshold 
 LATENCY_THRESHOLD = 0.030
 
-
 # Noise spectral density in dBm
 NOISE_SPECTRAL_DENSITY_DBM = -174
 
 # Carrier frequency in GHz
 CARRIER_FREQ_GHZ = 2
 
-# Bandwidth (10-15 MHz)
-BANDWIDTH_HZ = 10e6
+# System bandwidth (10 MHz) chosen from Table I
+SYS_BANDWIDTH_HZ = 10e6
+
+# Single resource block (RB) bandwidth r_jn = 180 kHz (Considering LTE numerology)
+BANDWIDTH_RB = 180e3 
 
 # Transmit power in dBm
-TX_POWER_AV = 23        # Aerial vehicle Tx power
 TX_POWER_GBS_HAP = 46   # Ground base station / HAP Tx power
 TX_POWER_LEO = 50       # LEO satellite Tx power
 
-# Convert dBm to linear
+# Convert dBm to linear scale
 TX_POWER_GBS_W = 10 ** ((TX_POWER_GBS_HAP - 30) / 10)
 TX_POWER_HAP_W = 10 ** ((TX_POWER_GBS_HAP - 30) / 10)
 TX_POWER_LEO_W = 10 ** ((TX_POWER_LEO - 30) / 10)
 NOISE_SPECTRAL_DENSITY_W = 10 ** ((NOISE_SPECTRAL_DENSITY_DBM - 30) / 10)
+
+TOTAL_RBS_GBS = 50 # Both for primary and backup RBs per RU, considering LTE numerology
+PRIMARY_RBS_GBS = 40
+
+# Transmit power per RB in watts
+TX_POWER_GBS_RB_W = TX_POWER_GBS_W / TOTAL_RBS_GBS
+TX_POWER_HAP_RB_W = TX_POWER_HAP_W / TOTAL_RBS_GBS
+TX_POWER_LEO_RB_W = TX_POWER_LEO_W / TOTAL_RBS_GBS
 
 # Modulation order (16-QAM)
 MODULATION_M = 16
 
 # Network toplogy parameters
 NUM_GBS = 7           # Number of ground base stations
-CELL_RADIUS = 750     # Calcualted to cover entire 10 sq.km ground area
-AREA_RANGE = 1650    
-NUM_UE = 100          # Deafualt UE count
+CELL_RADIUS = 700     # Calculated to cover entire 10 sq.km ground area
+AREA_RANGE = 1600    
+NUM_UE = 100
 
 ALTITUDE_HAP = 20000    # 20 Km
 ALTITUDE_LEO = 110000   # 110 Km

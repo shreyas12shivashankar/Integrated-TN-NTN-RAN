@@ -6,15 +6,14 @@ from scipy.special import erfc
 
 # Antenna gains in dBi (Assuming UE with omni-directional antenna of 0 dBi)
 GAIN_GBS_DBI = 16.84    
-GAIN_HAP_DBI = 32.0
-GAIN_LEO_DBI = 38.0
+GAIN_HAP_DBI = 1.0
+GAIN_LEO_DBI = 1.0
 
 # Ricean K-factors in dB for different links
 K_UMA_DB_MEAN = 9.0   # Average K-factor for Urban Macro (UMA) terrestrial links as per 3GPP TR 38.901
 K_UMA_DB_SD = 3.5
-K_HAP_STATIC = 15.0   # Static K-factor for HAP links in S-band (12~15 dB)
-K_LEO_STATIC = 15.0   # Static K-factor for LEO satellite links in S-band (12~15 dB)
-
+K_HAP_STATIC = 1.0   # Static K-factor for HAP links in S-band (12~15 dB)
+K_LEO_STATIC = 1.0   # Static K-factor for LEO satellite links in S-band (12~15 dB)
 
 # Channel Model Functions
 
@@ -39,7 +38,7 @@ def get_rician_fading_and_pdf(k_db):
     sigma = np.sqrt(1 / (2 * (k_lin + 1)))
     
     # Draw small scale fading magnitude |w_jn| directly using SciPy
-    w_jn_mag = stats.rice.rvs(rho / sigma, scale=sigma)
+    w_jn_mag = stats.rice.rvs(b= rho / sigma, scale=sigma)
     
     # Calculate exact PDF density (Eq 13)
     z = (w_jn_mag * rho) / (sigma**2)
@@ -56,8 +55,8 @@ def channel_coefficient(antenna_gain_db, path_loss_db, k_factor_db):
     path_loss_linear = 10 ** (path_loss_db / 10.0)
     
     # Both Terrestrial and NTN links use the exact Rician distribution.
-    # NTN links will pass a high static K-factor (e.x. 15 dB), 
-    # which converges the fading magnitude (w_jn) approximetly to 1.0
+    # A high K-factor (ex. 15 dB) makes the Rician fading
+    # magnitude strongly concentrated around its LOS-dominated value.
     w_jn, _ = get_rician_fading_and_pdf(k_factor_db)
            
     # Return absolute channel magnitude |h_jn|
@@ -79,7 +78,7 @@ def error_probability(sinr, M=16):
     q_function = 0.5 * erfc(x / np.sqrt(2))
     return (4 / np.log2(M)) * q_function
 
-def check_transmission_success(capacity_mbps, distance_m, packet_size_bytes=32, max_latency_ms=10.0):
+def check_transmission_success(capacity_mbps, distance_m, packet_size_bytes=32, max_latency_ms=30.0):
     """ Calculates E2E delay and checks if it meets the URLLC latency threshold. 
     Based on parameters from Salehi et al. Table I.
     """

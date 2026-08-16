@@ -1,4 +1,4 @@
-from src.primary_path import get_all_link_budgets
+from src.link_evaluator import get_all_link_budgets
 
 def inject_bs_failure(ue_coords, bs_coords, hap_coord, leo_coord, failed_bs_indices, evaluate_link_func):
     """ Simulates Ground Base Station failure risk """
@@ -15,12 +15,14 @@ def inject_bs_failure(ue_coords, bs_coords, hap_coord, leo_coord, failed_bs_indi
         if primary_link['is_ntn'] or int(primary_link['name'].split('_')[1]) not in failed_bs_indices:
             continue
             
-        # 4. User is affected. Hence their primary availability is 0.0 becuase physical availablity (rho_s) of GBS is 0.0
+        # 4. User is affected. Hence their primary availability is 0.0 because physical availability (rho_s) of GBS is 0.0
         user_links = {
             "ue_id": ue_id, 
             "primary_node": primary_link['name'],
             "primary_availability": 0.0, 
-            "candidate_links": {}
+            "candidate_links": {},
+            "spectral_efficiencies": {},  # Added to store bps/Hz for the scheduler
+            "distances": {}               # Added to store physical distance for propagation delay
         }
         
         raw_interference = sum(p for idx, p in enumerate(gbs_powers) if idx not in failed_bs_indices)
@@ -40,10 +42,15 @@ def inject_bs_failure(ue_coords, bs_coords, hap_coord, leo_coord, failed_bs_indi
             else: 
                 interference = 0.0
             
-            # Evaluate the degraded link
-            success, a_jn = evaluate_link_func(link['p_tx'], link['h_sq'], interference,link['dist'])
-            if success:
+            # Evaluate the degraded link and unpack the new physical metrics
+            a_jn, capped_se, dist = evaluate_link_func(link['p_tx'], link['h_sq'], interference, link['dist'])
+            
+            
+            # Replace the old time-based latency boolean with a strict reliability threshold
+            if a_jn >= 0.0:
                 user_links["candidate_links"][name] = a_jn
+                user_links["spectral_efficiencies"][name] = capped_se
+                user_links["distances"][name] = dist
                 
         affected_users.append(user_links)
         
