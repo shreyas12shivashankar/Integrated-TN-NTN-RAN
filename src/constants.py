@@ -31,7 +31,8 @@ TX_POWER_HAP_W = 10 ** ((TX_POWER_GBS_HAP - 30) / 10)
 TX_POWER_LEO_W = 10 ** ((TX_POWER_LEO - 30) / 10)
 NOISE_SPECTRAL_DENSITY_W = 10 ** ((NOISE_SPECTRAL_DENSITY_DBM - 30) / 10)
 
-TOTAL_RBS_GBS = 50 # Both for primary and backup RBs per RU, considering LTE numerology
+# Total RBs per RU, considering 10MHz system bandwidth with Sub-carrier spacing of 15kHz with 12 subcarriers (180kHz)
+TOTAL_RBS_GBS = 50
 PRIMARY_RBS_GBS = 40
 
 # Transmit power per RB in watts

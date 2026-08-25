@@ -6,14 +6,14 @@ from scipy.special import erfc
 
 # Antenna gains in dBi (Assuming UE with omni-directional antenna of 0 dBi)
 GAIN_GBS_DBI = 16.84    
-GAIN_HAP_DBI = 1.0
-GAIN_LEO_DBI = 1.0
+GAIN_HAP_DBI = 32.0
+GAIN_LEO_DBI = 38.0
 
 # Ricean K-factors in dB for different links
 K_UMA_DB_MEAN = 9.0   # Average K-factor for Urban Macro (UMA) terrestrial links as per 3GPP TR 38.901
 K_UMA_DB_SD = 3.5
-K_HAP_STATIC = 1.0   # Static K-factor for HAP links in S-band (12~15 dB)
-K_LEO_STATIC = 1.0   # Static K-factor for LEO satellite links in S-band (12~15 dB)
+K_HAP_STATIC = 15.0   # Static K-factor for HAP links in S-band (12~15 dB)
+K_LEO_STATIC = 15.0   # Static K-factor for LEO satellite links in S-band (12~15 dB)
 
 # Channel Model Functions
 

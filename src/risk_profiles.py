@@ -43,7 +43,7 @@ def inject_bs_failure(ue_coords, bs_coords, hap_coord, leo_coord, failed_bs_indi
                 interference = 0.0
             
             # Evaluate the degraded link and unpack the new physical metrics
-            a_jn, capped_se, dist = evaluate_link_func(link['p_tx'], link['h_sq'], interference, link['dist'])
+            a_jn, capped_se, dist, sinr_db = evaluate_link_func(link['p_tx'], link['h_sq'], interference, link['dist'])
             
             
             # Replace the old time-based latency boolean with a strict reliability threshold
@@ -51,6 +51,10 @@ def inject_bs_failure(ue_coords, bs_coords, hap_coord, leo_coord, failed_bs_indi
                 user_links["candidate_links"][name] = a_jn
                 user_links["spectral_efficiencies"][name] = capped_se
                 user_links["distances"][name] = dist
+                
+                if "sinrs" not in user_links:
+                    user_links["sinrs"] = {}
+                user_links["sinrs"][name] = sinr_db
                 
         affected_users.append(user_links)
         

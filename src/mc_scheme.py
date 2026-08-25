@@ -5,20 +5,20 @@ import src.constants as const
 
 def apply_mc_scheme(primary_df):
     """
-    Takes the primary baseline and applies a Static Dual-Connectivity MC scheme.
-    Every user gets exactly one primary and one secondary path (capacity permitting),
+    Takes the primary baseline and applies a Dual-Connectivity MC scheme.
+    Every user gets exactly one primary and one secondary path,
     simulating packet duplication for seamless URLLC reliability.
-    Enforces strict 50 RB capacity limits on ALL nodes (GBS, HAP, LEO).
+    Enforces strict 50 RB capacity limits on all nodes (GBS, HAP, LEO).
     """
     RHO_PHYSICAL = 1.0 
     PSI_BACKHAUL = 1.0 - const.BACKHAUL_ERROR_PROB
     
-    # 1. Initialize capacity for ALL network nodes (Total 50 RBs each)
+    # Initialize capacity for ALL network nodes (Total 50 RBs each)
     node_capacity = {f'GBS_{i}': const.TOTAL_RBS_GBS for i in range(const.NUM_GBS)}
     node_capacity['HAP'] = const.TOTAL_RBS_GBS
     node_capacity['LEO'] = const.TOTAL_RBS_GBS
 
-    # 2. Deduct capacity used by the primary connections
+    # Deduct capacity used by the primary connections
     for _, row in primary_df.iterrows():
         node_capacity[row['Primary_RU']] -= 1
 
@@ -54,7 +54,7 @@ def apply_mc_scheme(primary_df):
             is_success, d_total_ms = check_transmission_success(
                 capacity_mbps=c_cap_mbps, distance_m=cand['dist']
             )
-            # Reject if E2E delay is more than threshold of 30 ms
+            # Reject if E2E delay is more than latency threshold of 30 ms 
             if not is_success:
                 continue
             
@@ -69,7 +69,7 @@ def apply_mc_scheme(primary_df):
         # Sort remaining candidates by highest individual availability
         remaining_cands.sort(key=lambda x: x['calc_a_jn'], reverse=True)
         
-        # 3. Assign exactly one secondary path if available
+        # Assign exactly one secondary path if available
         if remaining_cands:
             sec = remaining_cands[0]
             a_n = 1.0 - ((1.0 - a_jn) * (1.0 - sec['calc_a_jn']))

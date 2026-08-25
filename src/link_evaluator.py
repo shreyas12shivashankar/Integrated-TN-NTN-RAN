@@ -5,10 +5,6 @@ from src.system_model import (
     K_UMA_DB_MEAN, K_UMA_DB_SD, K_HAP_STATIC, K_LEO_STATIC
 )
 import src.constants as const
-
-def dbm_to_watts(dbm):
-    """Converts dBm value to Watts."""
-    return 10 ** ((dbm - 30) / 10)
  
 def get_all_link_budgets(ue_pos, bs_coords, hap_coord, leo_coord):
     """Calculates received power and link metrics for every node using per-RB transmit power."""
