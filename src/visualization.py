@@ -20,14 +20,14 @@ def plot_topology(df, bs_coords, hap_coord, leo_coord, ue_coords, title='Network
     
     #  Debugging code: To see plot with named users and gbs
     #-----------------------------------------------------------------------------------
-    for i, bs in enumerate(bs_coords):
+    # for i, bs in enumerate(bs_coords):
             
-        # Adding a Z-offset of +200m so the text floats above the blue triangle
-        ax.text(bs[0], bs[1], bs[2] + 200, f'GBS_{i}', fontsize=10, weight='bold', color='darkblue')
+    #     # Adding a Z-offset of +200m so the text floats above the blue triangle
+    #     ax.text(bs[0], bs[1], bs[2] + 200, f'GBS_{i}', fontsize=10, weight='bold', color='darkblue')
         
-    for i, ue in enumerate(ue_coords):
-        # Adding a Z-offset of +100m so the text floats above the red dot
-        ax.text(ue[0], ue[1], ue[2] + 100, f'UE_{i:02d}', fontsize=8, color='darkred')
+    # for i, ue in enumerate(ue_coords):
+    #     # Adding a Z-offset of +100m so the text floats above the red dot
+    #     ax.text(ue[0], ue[1], ue[2] + 100, f'UE_{i:02d}', fontsize=8, color='darkred')
     #------------------------------------------------------------------------------------
     
     # Draw lines using stored coordinates in DataFrame

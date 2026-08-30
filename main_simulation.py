@@ -270,7 +270,7 @@ def evaluate_mc_scheme():
     # print("      DEBUG: COMPONENTS FOR PRIMARY GROUND CONNECTIONS")
     # print("      Equation: SINR = Signal_W / (Interf_W + Noise_W)")
     # print("-"*100)
-    # print(debug_df.head(20).to_string(index=False)) 
+    # print(debug_df.head(100).to_string(index=False)) 
     # print("-"*100 + "\n")
     # ----------------------------------------------------------------------------------------------- 
     
@@ -501,7 +501,6 @@ if __name__ == "__main__":
     
     print("\nExecuting Parameter Sweeps")
     
-    #execute_2d_failure_sweep(run_simulation)
     
     #execute_3d_capacity_sweep(run_simulation)
     

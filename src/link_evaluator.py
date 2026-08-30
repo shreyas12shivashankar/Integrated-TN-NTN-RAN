@@ -1,7 +1,7 @@
 import numpy as np
 from src.system_model import (
     distance_3D, path_loss, free_space_path_loss, channel_coefficient,
-    GAIN_GBS_DBI, GAIN_HAP_DBI, GAIN_LEO_DBI,
+    gbs_3d_antenna_gain_db, GAIN_HAP_DBI, GAIN_LEO_DBI,
     K_UMA_DB_MEAN, K_UMA_DB_SD, K_HAP_STATIC, K_LEO_STATIC
 )
 import src.constants as const
@@ -31,15 +31,28 @@ def get_all_link_budgets(ue_pos, bs_coords, hap_coord, leo_coord):
     gbs_powers_w = [] 
     
     for i, bs_pos in enumerate(bs_coords):
-        d_gbs = distance_3D(bs_pos, ue_pos)
-        k_db = np.random.normal(K_UMA_DB_MEAN, K_UMA_DB_SD) 
-        h_sq_gbs = channel_coefficient(GAIN_GBS_DBI, path_loss(d_gbs, const.CARRIER_FREQ_GHZ), k_db)**2
-        rx_gbs = const.TX_POWER_GBS_RB_W * h_sq_gbs
-        
-        gbs_powers_w.append(rx_gbs)  
-        links.append({
-            'name': f'GBS_{i}', 'rx_w': rx_gbs, 'is_ntn': False, 'pos': bs_pos, 
-            'dist': d_gbs, 'p_tx': const.TX_POWER_GBS_RB_W, 'h_sq': h_sq_gbs
-        })
+            d_gbs = distance_3D(bs_pos, ue_pos)
+            
+            # Calculate horizontal distance between UE and GBS positions.
+            d_2d  = np.linalg.norm(np.array(bs_pos[:2]) - np.array(ue_pos[:2]))
+            
+            # Dynamic antenna gain based on elevation angle
+            dynamic_gain_dbi = gbs_3d_antenna_gain_db(
+                ue_pos=ue_pos, 
+                bs_pos=bs_pos,
+                h_gbs=bs_pos[2] if len(bs_pos) > 2 else 25.0, 
+                h_ue=ue_pos[2] if len(ue_pos) > 2 else 1.5
+            )
+                    
+            k_db = np.random.normal(K_UMA_DB_MEAN, K_UMA_DB_SD) 
+            
+            h_sq_gbs = channel_coefficient(dynamic_gain_dbi, path_loss(d_gbs, const.CARRIER_FREQ_GHZ), k_db)**2
+            rx_gbs = const.TX_POWER_GBS_RB_W * h_sq_gbs
+            
+            gbs_powers_w.append(rx_gbs)  
+            links.append({
+                'name': f'GBS_{i}', 'rx_w': rx_gbs, 'is_ntn': False, 'pos': bs_pos, 
+                'dist': d_gbs, 'p_tx': const.TX_POWER_GBS_RB_W, 'h_sq': h_sq_gbs
+            })
         
     return links, gbs_powers_w

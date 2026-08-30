@@ -8,6 +8,14 @@ def evaluate_primary_connection(ue_coords, bs_coords, hap_coord, leo_coord, link
     Evaluates the primary connection for all users.
     Returns a DataFrame containing the baseline state.
     """
+    # Hexagonal frequency reuse-3 factor:
+    # GBS_0 is the center. GBS_1 through GBS_6 around it.
+    # No adjacent cells share the same frequency band.
+    FREQ_PLAN = {
+        'GBS_0': 0,
+        'GBS_1': 1, 'GBS_2': 2, 'GBS_3': 1, 
+        'GBS_4': 2, 'GBS_5': 1, 'GBS_6': 2
+    }
     RHO_PHYSICAL = 1.0 
     PSI_BACKHAUL = 1.0 - const.BACKHAUL_ERROR_PROB
     
@@ -50,7 +58,18 @@ def evaluate_primary_connection(ue_coords, bs_coords, hap_coord, leo_coord, link
                 break
 
         # Compute metrics of primary link
-        interference_w = 0.0 if best_link['is_ntn'] else sum(gbs_powers) - best_link['rx_w']
+        interference_w = 0.0
+        
+        if not best_link['is_ntn']:
+            my_freq = FREQ_PLAN[best_link['name']]
+            
+            # Only add interference from other GBS that are using the same frequency band
+            for cand in links:
+                if not cand['is_ntn'] and cand['name'] != best_link['name']:
+                    if FREQ_PLAN[cand['name']] == my_freq:
+                        interference_w += cand['rx_w']
+        
+        
         noise_w = const.NOISE_SPECTRAL_DENSITY_W * const.BANDWIDTH_RB
         
         sinr_lin = sinr(p_jn=best_link['p_tx'], h_sq=best_link['h_sq'], interference_power=interference_w,
